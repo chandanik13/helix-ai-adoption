@@ -52,7 +52,7 @@ The Summary view computes high-level organizational health metrics across the se
 
 - **Licensed Users:** Unique engineers holding at least one seat during the period.
 - **Active Users:** Engineers who performed qualifying AI operations (`chat`, `completion`, `agent`) while holding a valid seat.
-- **Engagement Rate:** Active users as a percentage of licensed users ($\frac{\text{active}}{\text{licensed}} \times 100$).
+- **Engagement Rate:** Active users as a percentage of licensed users (active ÷ licensed × 100).
 - **Total Spend:** Total prorated license expenditures across all priced tools.
 - **Idle Spend:** Financial waste incurred from seats held without any qualifying activity.
 
@@ -66,7 +66,7 @@ The Per-Tool breakdown provides granular unit economics for every vendor tool (`
 
 - **Adoption & Engagement:** Licensed and active user breakdown with visual progress indicators.
 
-- **Financial Attribution:** Spend, idle spend, and average cost per active developer ($\frac{\text{spend}}{\text{active\_users}}$).
+- **Financial Attribution:** Spend, idle spend, and average cost per active developer (spend ÷ active_users).
 - **Graceful Unpriced Handling:** As per Appendix P specifications, unpriced tools (such as `Tool E`) properly display user adoption while reporting spend and unit economics as `—` (JSON `null`) rather than misleading zeros.
 - **Renewal Risk Categorization:**
   - 🔴 **High Risk:** Engagement `< 40%` — immediate intervention or cancellation candidate.
@@ -148,8 +148,8 @@ The system is designed for maximum speed, determinism, and zero external runtime
 ### Key Architectural Strengths
 
 1. **In-Memory Zero-Latency Execution:** Telemetry and identity datasets are parsed once during FastAPI application startup (`lifespan`). Queries execute against optimized Python dictionaries and sorted lists with zero database round-trips.
-2. **Subtree-Set Org Resolution:** Department hierarchies can span arbitrary levels (`L1` to `L5`). At startup, `_org_user_sets()` precomputes transitive closures for every organization unit, allowing department filters to filter users in $O(1)$ set-membership checks.
-3. **Bisect-Accelerated Telemetry Verification:** Developer activity timestamps are mapped to integer calendar day ordinals. Testing if a user logged activity during their active seat tenure uses `bisect_left` in $O(\log K)$ time.
+2. **Subtree-Set Org Resolution:** Department hierarchies can span arbitrary levels (`L1` to `L5`). At startup, `_org_user_sets()` precomputes transitive closures for every organization unit, allowing department filters to filter users in O(1) set-membership checks.
+3. **Bisect-Accelerated Telemetry Verification:** Developer activity timestamps are mapped to integer calendar day ordinals. Testing if a user logged activity during their active seat tenure uses `bisect_left` in O(log K) time.
 
 ---
 
@@ -161,15 +161,15 @@ Financial compliance requires eliminating floating-point rounding errors.
 
 - Floating-point representations (e.g. `0.1 + 0.2 != 0.3`) accumulate rounding errors across tens of thousands of developer-days.
 - All seat costs, daily prorations, and aggregated spends are maintained as exact fractions:
-  $$\text{Daily Rate} = \frac{\text{monthly\_price\_usd}}{30}$$
-  $$\text{Seat Spend} = \text{Fraction}(\text{monthly\_price\_usd}) \times \frac{\text{days\_held\_in\_window}}{30}$$
+  Daily rate = monthly_price_usd / 30
+  Seat spend = Fraction(monthly_price_usd) × days_held_in_window / 30
 - **Single-Point Rounding:** Intermediate sums are never truncated. Values are converted to `Decimal` and rounded exactly once when generating final responses using `ROUND_HALF_UP` to two decimal places for currency and one decimal place for percentages.
 
 ### 2. Calendar Semantics & Half-Open Intervals
 
 - **30-Day Contract Convention:** In accordance with Appendix P, seat monthly prices cover exactly 30 days regardless of whether a month has 28, 30, or 31 days.
 - **Revocation Boundary:** `revoked_on` represents the **first day without** the seat. The seat interval is strictly half-open:
-  $$\text{Interval} = [\text{granted\_on}, \text{revoked\_on})$$
+  Interval = [granted_on, revoked_on)
   A seat granted on July 1 and revoked on July 10 is held for exactly 9 days (July 1 through July 9 inclusive).
 - **Qualifying Usage Rule:** Activity only counts as valid usage if it occurs on a day when the developer held an active seat for that specific tool. Events outside the held interval are ignored.
 
@@ -223,10 +223,10 @@ Computes high-level adoption and financial figures across all tools for the spec
 #### Response Fields:
 | Field | Type | Description |
 |---|---|---|
-| `licensed_users` | `integer` | Count of distinct employees who held $\ge 1$ seat on $\ge 1$ day during the window. |
+| `licensed_users` | `integer` | Count of distinct employees who held at least one seat on at least one day during the window. |
 | `active_users` | `integer` | Count of distinct employees who logged qualifying usage (`chat`, `completion`, `agent`) on a day they held an active seat. |
-| `engagement_pct` | `float` | Percentage of licensed users who were active ($\frac{\text{active}}{\text{licensed}} \times 100$), rounded to 1 decimal place. |
-| `spend` | `float` | Total spend across all priced tools held in the window, prorated at $\frac{\text{monthly\_price}}{30} \times \text{days\_held}$ (2 decimal places). |
+| `engagement_pct` | `float` | Percentage of licensed users who were active (active ÷ licensed × 100), rounded to 1 decimal place. |
+| `spend` | `float` | Total spend across all priced tools held in the window, prorated at monthly_price / 30 × days_held (2 decimal places). |
 | `idle_spend` | `float` | Total waste incurred by seats held with zero qualifying activity in the window (2 decimal places). |
 
 #### Worked Example Query:
@@ -246,9 +246,9 @@ GET /api/summary?from=2026-07-01&to=2026-07-30
 ```
 
 *Derivation:*
-- **P1 on Tool A** ($19/mo, held all 30 days, used on July 5): Spend = $19.00, Idle = $0.00
-- **P1 on Tool C** ($30/mo, granted July 21 $\rightarrow$ held 10 days, not used): Spend = $10.00, Idle = $10.00
-- **P2 on Tool A** ($19/mo, revoked July 16 $\rightarrow$ held 15 days, not used): Spend = $9.50, Idle = $9.50
+- **P1 on Tool A** (USD 19/month, held all 30 days, used on July 5): Spend = USD 19.00, Idle = USD 0.00
+- **P1 on Tool C** (USD 30/month, granted July 21 → held 10 days, not used): Spend = USD 10.00, Idle = USD 10.00
+- **P2 on Tool A** (USD 19/month, revoked July 16 → held 15 days, not used): Spend = USD 9.50, Idle = USD 9.50
 - **Total:** Licensed: `2`, Active: `1`, Engagement: `50.0%`, Spend: `38.5`, Idle: `19.5`.
 
 ---
@@ -271,11 +271,11 @@ Returns granular metrics for each vendor tool, guaranteed to appear in fixed ord
 | `tool` | `string` | Tool name (`"A"`, `"B"`, `"C"`, `"D"`, `"E"`). |
 | `licensed_users` | `integer` | Count of distinct employees holding a seat for this tool during the window. |
 | `active_users` | `integer` | Count of distinct employees with qualifying usage on this tool during the window. |
-| `engagement_pct` | `float` | Active / Licensed $\times$ 100 (1 decimal place). |
+| `engagement_pct` | `float` | Active / Licensed × 100 (1 decimal place). |
 | `spend` | `float \| null` | Prorated spend for this tool. Returns `null` if unpriced (`Tool E`). |
 | `idle_spend` | `float \| null` | Spend wasted on inactive seats for this tool. Returns `null` if unpriced. |
-| `cost_per_active` | `float \| null` | Unit cost per active user ($\frac{\text{spend}}{\text{active\_users}}$). Returns `null` if unpriced or no active users. |
-| `renewal_risk` | `string` | Renewal risk classification: `"high"` ($< 40\%$), `"medium"` ($40-69.9\%$), `"low"` ($\ge 70\%$), or `"none"`. |
+| `cost_per_active` | `float \| null` | Unit cost per active user (spend ÷ active_users). Returns `null` if unpriced or no active users. |
+| `renewal_risk` | `string` | Renewal risk classification: `"high"` (< 40%), `"medium"` (40-69.9%), `"low"` (>= 70%), or `"none"`. |
 
 #### Example Query:
 ```http
@@ -361,7 +361,7 @@ Returns every individual license seat held during the date window that registere
 | `org_unit` | `string` | Department / org unit ID where the developer is assigned. |
 | `granted_on` | `string` | Date the seat license was initially assigned (`YYYY-MM-DD`). |
 | `days_held` | `integer` | Total days the seat was active within the query window. |
-| `cost` | `float` | Dollar waste incurred by this unused seat ($\frac{\text{monthly\_price} \times \text{days\_held}}{30}$). |
+| `cost` | `float` | Dollar waste incurred by this unused seat (monthly_price × days_held / 30). |
 
 #### Example Query:
 ```http

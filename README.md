@@ -583,4 +583,4 @@ python -m pytest tests/ -v
 
 ---
 
-*Developed by **Chandani Kumari** ([it.kumarichandani@gmail.com](mailto:it.kumarichandani@gmail.com)) for Bruviti 2026.*
+*Developed by **Chandani Kumari** ([it.kumarichandani27@gmail.com](mailto:it.kumarichandani27@gmail.com)) for Bruviti 2026.*

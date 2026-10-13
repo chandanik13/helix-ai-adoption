@@ -1,7 +1,9 @@
 # AI.md — AI tools used
 
-Tool | What it was used for 
-**Antigravity (Google DeepMind)** | Understanding the problem statement, planning the implementation approach, generating `main.py`, `tests/test_all.py`, `static/index.html`, `README.md`, `DATA.md`, `NOTES.md`, and reviewing the overall structure 
-**Antigravity (Google DeepMind)** | Identifying data quality issues from the cleaning report output and drafting DATA.md findings 
+| Tool | Role in this project |
+| --- | --- |
+| Claude | Planning and requirement framing. Used to structure the problem, define the solution approach, and break the work into implementation steps. |
+| Antigravity | Implementation support. Used to generate and refine the backend logic, data processing, API endpoints, tests, and supporting project documentation. |
+| Stitch | UI / design support. Used to design the dashboard look-and-feel, dark-mode styling, layout composition, and overall visual polish for the front-end experience. |
 
 All code was reviewed and understood by the author. Every function, edge case, and design decision can be explained in detail.

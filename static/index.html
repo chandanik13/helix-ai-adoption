@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Helix Labs – AI Tool Adoption Dashboard</title>
+  <meta name="description" content="Interactive dashboard for AI coding-tool adoption and spend metrics at Helix Labs." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Design tokens ─────────────────────────────────────── */
+    :root {
+      --bg:        #070b12;
+      --surface:   #0e1521;
+      --surface2:  #162032;
+      --surface3:  #1d2b40;
+      --border:    #1e2d45;
+      --accent:    #3b82f6;
+      --accent2:   #6366f1;
+      --green:     #10b981;
+      --amber:     #f59e0b;
+      --red:       #ef4444;
+      --text:      #e2e8f0;
+      --muted:     #64748b;
+      --radius:    14px;
+      --glow:      0 0 40px rgba(59,130,246,.14);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Background mesh ────────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 15% 10%, rgba(59,130,246,.09) 0%, transparent 55%),
+        radial-gradient(ellipse 60% 50% at 85% 85%, rgba(99,102,241,.07) 0%, transparent 55%),
+        radial-gradient(ellipse 40% 40% at 60% 30%, rgba(16,185,129,.04) 0%, transparent 50%);
+      pointer-events: none; z-index: 0;
+    }
+
+    /* ── Layout ─────────────────────────────────────────────── */
+    .page { position: relative; z-index: 1; display: flex; min-height: 100vh; }
+    .sidebar {
+      width: 240px; min-width: 200px; max-width: 260px;
+      background: var(--surface); border-right: 1px solid var(--border);
+      padding: 28px 0; overflow-y: auto; flex-shrink: 0;
+      transition: transform .3s;
+    }
+    .sidebar-title {
+      font-size: .7rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+      color: var(--muted); padding: 0 18px 12px; border-bottom: 1px solid var(--border);
+      margin-bottom: 8px;
+    }
+    .org-node {
+      padding: 6px 18px 6px calc(18px + var(--depth, 0) * 14px);
+      font-size: .82rem; cursor: pointer; color: var(--muted);
+      transition: background .1s, color .1s; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis;
+      border-left: 2px solid transparent;
+    }
+    .org-node:hover { background: var(--surface2); color: var(--text); }
+    .org-node.selected {
+      background: rgba(59,130,246,.12); color: var(--accent);
+      border-left-color: var(--accent);
+    }
+    .main { flex: 1; padding: 40px 32px 80px; max-width: 900px; }
+
+    /* ── Header ─────────────────────────────────────────────── */
+    header { text-align: left; margin-bottom: 36px; }
+    .logo-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(59,130,246,.12); border: 1px solid rgba(59,130,246,.3);
+      border-radius: 999px; padding: 5px 14px; font-size: .74rem;
+      font-weight: 600; color: var(--accent); letter-spacing: .08em;
+      text-transform: uppercase; margin-bottom: 16px;
+    }
+    .logo-badge svg { width: 12px; height: 12px; }
+    h1 { font-size: clamp(1.5rem, 3vw, 2.2rem); font-weight: 700; line-height: 1.2; margin-bottom: 8px; }
+    h1 span {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .subtitle { color: var(--muted); font-size: .9rem; line-height: 1.6; }
+
+    /* ── Card ───────────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: var(--glow);
+      transition: border-color .2s;
+    }
+    .card:hover { border-color: rgba(59,130,246,.25); }
+
+    /* ── Form ───────────────────────────────────────────────── */
+    .form-row {
+      display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;
+      margin-bottom: 18px;
+    }
+    .field { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 120px; }
+    label { font-size: .73rem; font-weight: 600; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+    input, select {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 9px 12px; color: var(--text);
+      font-family: inherit; font-size: .88rem; outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    input:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(59,130,246,.15);
+    }
+    select option { background: var(--surface2); }
+
+    /* ── Tab switcher ───────────────────────────────────────── */
+    .tabs { display: flex; gap: 6px; margin-bottom: 18px; flex-wrap: wrap; }
+    .tab {
+      padding: 9px 16px; border: 1px solid var(--border);
+      border-radius: 8px; background: var(--surface2);
+      color: var(--muted); font-size: .82rem; font-weight: 600;
+      cursor: pointer; transition: all .15s; white-space: nowrap;
+    }
+    .tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .tab:hover:not(.active) { border-color: rgba(59,130,246,.4); color: var(--text); }
+
+    /* ── Button ─────────────────────────────────────────────── */
+    .btn {
+      padding: 10px 24px; border: none; border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #fff; font-family: inherit; font-size: .9rem; font-weight: 600;
+      cursor: pointer; letter-spacing: .02em;
+      transition: opacity .15s, transform .1s;
+      white-space: nowrap;
+    }
+    .btn:hover { opacity: .9; transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+    /* ── Results area ───────────────────────────────────────── */
+    #results { margin-top: 24px; }
+
+    /* ── Summary cards ──────────────────────────────────────── */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px; margin-bottom: 20px;
+    }
+    .metric-card {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 16px 14px;
+      animation: fadeUp .35s ease both;
+    }
+    .metric-card:nth-child(1) { animation-delay: .04s; }
+    .metric-card:nth-child(2) { animation-delay: .08s; }
+    .metric-card:nth-child(3) { animation-delay: .12s; }
+    .metric-card:nth-child(4) { animation-delay: .16s; }
+    .metric-card:nth-child(5) { animation-delay: .20s; }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .metric-label { font-size: .7rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 6px; }
+    .metric-value { font-size: 1.55rem; font-weight: 700; letter-spacing: -.01em; }
+    .metric-value.green { color: var(--green); }
+    .metric-value.amber { color: var(--amber); }
+    .metric-value.blue  { color: var(--accent); }
+
+    /* ── Tools table ────────────────────────────────────────── */
+    .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    thead { background: var(--surface2); }
+    thead th {
+      padding: 11px 12px; text-align: right; font-size: .7rem;
+      font-weight: 600; color: var(--muted); letter-spacing: .07em;
+      text-transform: uppercase; white-space: nowrap;
+    }
+    thead th:first-child { text-align: left; }
+    tbody tr { border-top: 1px solid var(--border); transition: background .1s; }
+    tbody tr:hover { background: rgba(59,130,246,.04); }
+    tbody td { padding: 11px 12px; text-align: right; }
+    tbody td:first-child { text-align: left; font-weight: 600; }
+    .tool-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 24px; height: 24px; border-radius: 5px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      font-size: .75rem; font-weight: 700; color: #fff; margin-right: 6px;
+    }
+    .null-val { color: var(--muted); font-style: italic; }
+    .bar-wrap { display: inline-flex; align-items: center; gap: 6px; justify-content: flex-end; }
+    .bar-bg { width: 50px; height: 4px; background: var(--border); border-radius: 3px; }
+    .bar-fill { height: 100%; border-radius: 3px; transition: width .4s; }
+    .bar-high   { background: var(--green); }
+    .bar-medium { background: var(--amber); }
+    .bar-low    { background: var(--red); }
+
+    /* ── Risk badge ─────────────────────────────────────────── */
+    .risk {
+      display: inline-block; padding: 2px 8px; border-radius: 999px;
+      font-size: .68rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+    }
+    .risk-high   { background: rgba(239,68,68,.15);  color: #fca5a5; border: 1px solid rgba(239,68,68,.3); }
+    .risk-medium { background: rgba(245,158,11,.15); color: #fcd34d; border: 1px solid rgba(245,158,11,.3); }
+    .risk-low    { background: rgba(16,185,129,.15); color: #6ee7b7; border: 1px solid rgba(16,185,129,.3); }
+    .risk-none   { background: var(--surface3); color: var(--muted); border: 1px solid var(--border); }
+
+    /* ── Trend chart ────────────────────────────────────────── */
+    .trend-wrap { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
+    .trend-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .trend-title { font-size: .8rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; }
+    .chart-svg { width: 100%; height: 160px; }
+    .trend-legend { display: flex; gap: 16px; margin-top: 10px; flex-wrap: wrap; }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: .78rem; color: var(--muted); }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .chart-grid { stroke: var(--border); stroke-width: 1; }
+    .chart-area-active { fill: rgba(59,130,246,.12); }
+    .chart-area-licensed { fill: rgba(99,102,241,.08); }
+    .chart-line-active { fill: none; stroke: var(--accent); stroke-width: 2; }
+    .chart-line-licensed { fill: none; stroke: var(--accent2); stroke-width: 1.5; stroke-dasharray: 4 3; }
+    .chart-dot { r: 3; }
+
+    /* ── Idle seats table ───────────────────────────────────── */
+    .idle-stat { font-size: .8rem; color: var(--muted); margin-bottom: 14px; }
+    .idle-stat strong { color: var(--amber); }
+    .cost-pill {
+      background: rgba(239,68,68,.12); color: #fca5a5;
+      border: 1px solid rgba(239,68,68,.2); border-radius: 999px;
+      padding: 2px 10px; font-size: .8rem; font-weight: 600;
+    }
+
+    /* ── Error banner ───────────────────────────────────────── */
+    .error-box {
+      background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.3);
+      border-radius: 10px; padding: 14px 18px; color: #fca5a5; font-size: .88rem;
+      animation: fadeUp .3s ease;
+    }
+
+    /* ── Spinner ────────────────────────────────────────────── */
+    .spinner {
+      display: inline-block; width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,.3); border-top-color: #fff;
+      border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── JSON viewer ────────────────────────────────────────── */
+    details { margin-top: 18px; }
+    summary { cursor: pointer; font-size: .78rem; color: var(--muted); user-select: none; padding: 6px 0; }
+    summary:hover { color: var(--accent); }
+    pre {
+      background: #0d1117; border: 1px solid var(--border); border-radius: 8px;
+      padding: 14px; font-size: .75rem; color: #7ee787; overflow-x: auto;
+      margin-top: 8px; line-height: 1.6; max-height: 300px; overflow-y: auto;
+    }
+
+    /* ── Footer ─────────────────────────────────────────────── */
+    footer { text-align: left; color: var(--muted); font-size: .76rem; margin-top: 48px; }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    /* ── Responsive ─────────────────────────────────────────── */
+    @media (max-width: 700px) {
+      .sidebar { display: none; }
+      .main { padding: 24px 16px 60px; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Org Sidebar -->
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-title">🏢 Org Units</div>
+    <div id="org-tree"><div style="padding:12px 18px;color:var(--muted);font-size:.8rem;">Loading…</div></div>
+  </nav>
+
+  <!-- Main content -->
+  <div class="main">
+
+    <!-- Header -->
+    <header>
+      <div class="logo-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        Helix Labs · Bruviti 2026
+      </div>
+      <h1>AI Tool <span>Adoption Dashboard</span></h1>
+      <p class="subtitle">Query adoption metrics, spend analysis, trend data and idle seat waste</p>
+    </header>
+
+    <!-- Query card -->
+    <div class="card">
+      <div class="tabs">
+        <div class="tab active" id="tab-summary"  onclick="setTab('summary')">📊 Summary</div>
+        <div class="tab"        id="tab-tools"    onclick="setTab('tools')">🛠️ Per Tool</div>
+        <div class="tab"        id="tab-trend"    onclick="setTab('trend')">📈 Trend</div>
+        <div class="tab"        id="tab-idle"     onclick="setTab('idle')">💸 Waste</div>
+      </div>
+
+      <div class="form-row">
+        <div class="field">
+          <label for="inp-from">From</label>
+          <input type="date" id="inp-from" value="2026-07-01" />
+        </div>
+        <div class="field">
+          <label for="inp-to">To</label>
+          <input type="date" id="inp-to" value="2026-07-31" />
+        </div>
+        <div class="field">
+          <label for="inp-org">Org Unit</label>
+          <input type="text" id="inp-org" placeholder="All orgs" />
+        </div>
+        <div class="field" id="gran-field" style="display:none;">
+          <label for="inp-gran">Granularity</label>
+          <select id="inp-gran">
+            <option value="week">Weekly</option>
+            <option value="day">Daily</option>
+          </select>
+        </div>
+        <button class="btn" id="run-btn" onclick="runQuery()">Run Query</button>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div id="results"></div>
+
+    <footer>
+      API docs at <a href="/docs" target="_blank">/docs</a> &nbsp;·&nbsp;
+      Health at <a href="/health" target="_blank">/health</a>
+    </footer>
+  </div>
+</div>
+
+<script>
+  let activeTab = 'summary';
+  let selectedOrg = '';
+
+  /* ── Tab management ─────────────────────────────────── */
+  function setTab(t) {
+    activeTab = t;
+    ['summary','tools','trend','idle'].forEach(id => {
+      document.getElementById('tab-'+id).classList.toggle('active', id === t);
+    });
+    document.getElementById('gran-field').style.display = t === 'trend' ? '' : 'none';
+  }
+
+  /* ── Org sidebar ─────────────────────────────────────── */
+  async function loadOrgTree() {
+    try {
+      const data = await fetch('/api/orgs').then(r => r.json());
+      if (!Array.isArray(data)) return;
+      // Build parent→children map
+      const children = {};
+      const roots = [];
+      data.forEach(o => {
+        children[o.org_unit_id] = [];
+      });
+      data.forEach(o => {
+        if (o.parent_id && children[o.parent_id]) {
+          children[o.parent_id].push(o);
+        } else {
+          roots.push(o);
+        }
+      });
+      const tree = document.getElementById('org-tree');
+      tree.innerHTML = '';
+
+      // Add "All Orgs" option
+      const allNode = document.createElement('div');
+      allNode.className = 'org-node selected';
+      allNode.style.setProperty('--depth', 0);
+      allNode.style.fontWeight = 600;
+      allNode.textContent = '🌐 All Orgs';
+      allNode.id = 'org-all';
+      allNode.onclick = () => selectOrg('', allNode);
+      tree.appendChild(allNode);
+
+      function renderNode(org, depth) {
+        const el = document.createElement('div');
+        el.className = 'org-node';
+        el.style.setProperty('--depth', depth);
+        el.dataset.oid = org.org_unit_id;
+        el.title = `${org.org_unit_id} · ${org.level || ''}`;
+        el.textContent = (depth > 0 ? '└ ' : '') + org.name;
+        el.onclick = () => selectOrg(org.org_unit_id, el);
+        tree.appendChild(el);
+        (children[org.org_unit_id] || []).forEach(c => renderNode(c, depth + 1));
+      }
+      roots.forEach(r => renderNode(r, 0));
+    } catch(e) { /* sidebar fails gracefully */ }
+  }
+
+  function selectOrg(oid, el) {
+    selectedOrg = oid;
+    document.getElementById('inp-org').value = oid;
+    document.querySelectorAll('.org-node').forEach(n => n.classList.remove('selected'));
+    el.classList.add('selected');
+  }
+
+  /* ── Formatters ──────────────────────────────────────── */
+  function nullFmt(v, decimals=2, prefix='') {
+    if (v === null || v === undefined) return '<span class="null-val">—</span>';
+    if (typeof v === 'number') return prefix + v.toFixed(decimals);
+    return String(v);
+  }
+
+  function riskBadge(r) {
+    if (!r || r === 'none') return '<span class="risk risk-none">No Seats</span>';
+    return `<span class="risk risk-${r}">${r.toUpperCase()}</span>`;
+  }
+
+  /* ── Render: Summary ─────────────────────────────────── */
+  function renderSummary(data) {
+    const fields = [
+      { key: 'licensed_users', label: 'Licensed Users', cls: 'blue',  d: 0 },
+      { key: 'active_users',   label: 'Active Users',   cls: 'green', d: 0 },
+      { key: 'engagement_pct', label: 'Engagement',     cls: 'blue',  d: 1, sfx: '%' },
+      { key: 'spend',          label: 'Total Spend',    cls: 'green', d: 2, pfx: '$' },
+      { key: 'idle_spend',     label: 'Idle Spend',     cls: 'amber', d: 2, pfx: '$' },
+    ];
+    let html = '<div class="metrics-grid">';
+    fields.forEach(f => {
+      const v = data[f.key];
+      const disp = v === null ? '—' : (f.pfx||'') + (typeof v === 'number' ? v.toFixed(f.d) : v) + (f.sfx||'');
+      html += `<div class="metric-card">
+        <div class="metric-label">${f.label}</div>
+        <div class="metric-value ${f.cls}">${disp}</div>
+      </div>`;
+    });
+    html += '</div>';
+    return html;
+  }
+
+  /* ── Render: Tools ───────────────────────────────────── */
+  function renderTools(rows) {
+    const maxEng = Math.max(...rows.map(r => r.engagement_pct||0), 1);
+    let html = '<div class="table-wrap"><table><thead><tr>';
+    ['Tool','Licensed','Active','Engagement','Spend ($)','Idle ($)','Cost/Active ($)','Risk'].forEach(h =>
+      html += `<th>${h}</th>`);
+    html += '</tr></thead><tbody>';
+    rows.forEach(r => {
+      const pct = r.engagement_pct || 0;
+      const barCls = pct >= 70 ? 'bar-high' : pct >= 40 ? 'bar-medium' : 'bar-low';
+      const bar = `<div class="bar-wrap"><span>${pct.toFixed(1)}%</span>
+        <div class="bar-bg"><div class="bar-fill ${barCls}" style="width:${(pct/maxEng*100).toFixed(1)}%"></div></div>
+      </div>`;
+      html += `<tr>
+        <td><span class="tool-badge">${r.tool}</span>Tool ${r.tool}</td>
+        <td>${r.licensed_users}</td>
+        <td>${r.active_users}</td>
+        <td>${bar}</td>
+        <td>${nullFmt(r.spend, 2)}</td>
+        <td>${nullFmt(r.idle_spend, 2)}</td>
+        <td>${nullFmt(r.cost_per_active, 2)}</td>
+        <td>${riskBadge(r.renewal_risk)}</td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+    return html;
+  }
+
+  /* ── Render: Trend sparkline ─────────────────────────── */
+  function renderTrend(data) {
+    if (!data.length) return '<div class="error-box">No periods returned.</div>';
+    const W = 800, H = 140, PADL = 10, PADR = 10, PADT = 10, PADB = 30;
+    const iW = W - PADL - PADR, iH = H - PADT - PADB;
+    const maxLic = Math.max(...data.map(d=>d.licensed_users), 1);
+    const maxAct = Math.max(...data.map(d=>d.active_users), 1);
+    const maxVal = Math.max(maxLic, maxAct);
+    const n = data.length;
+    const xStep = iW / Math.max(n - 1, 1);
+
+    function xOf(i) { return (PADL + (n>1 ? i*xStep : iW/2)).toFixed(1); }
+    function yOf(v, max) { return (PADT + iH - (iH * v / max)).toFixed(1); }
+
+    // Grid lines
+    let svg = `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+    [0,.25,.5,.75,1].forEach(t => {
+      const y = (PADT + iH*(1-t)).toFixed(1);
+      svg += `<line x1="${PADL}" y1="${y}" x2="${W-PADR}" y2="${y}" class="chart-grid" />`;
+      svg += `<text x="${PADL}" y="${parseFloat(y)-3}" font-size="9" fill="var(--muted)">${Math.round(maxVal*t)}</text>`;
+    });
+
+    // Licensed area + line
+    const licPts = data.map((d,i) => `${xOf(i)},${yOf(d.licensed_users, maxVal)}`);
+    svg += `<polygon class="chart-area-licensed" points="${xOf(0)},${PADT+iH} ${licPts.join(' ')} ${xOf(n-1)},${PADT+iH}" />`;
+    svg += `<polyline class="chart-line-licensed" points="${licPts.join(' ')}" />`;
+
+    // Active area + line
+    const actPts = data.map((d,i) => `${xOf(i)},${yOf(d.active_users, maxVal)}`);
+    svg += `<polygon class="chart-area-active" points="${xOf(0)},${PADT+iH} ${actPts.join(' ')} ${xOf(n-1)},${PADT+iH}" />`;
+    svg += `<polyline class="chart-line-active" points="${actPts.join(' ')}" />`;
+
+    // Dots + X labels
+    data.forEach((d,i) => {
+      svg += `<circle class="chart-dot" cx="${xOf(i)}" cy="${yOf(d.active_users, maxVal)}" fill="var(--accent)" />`;
+      if (i === 0 || i === n-1 || (n<=8) || i % Math.ceil(n/6) === 0) {
+        svg += `<text x="${xOf(i)}" y="${H-4}" font-size="9" fill="var(--muted)" text-anchor="middle">${d.period.slice(5)}</text>`;
+      }
+    });
+    svg += '</svg>';
+
+    // Spend sparkline (mini)
+    const maxSpend = Math.max(...data.map(d=>d.spend||0), 1);
+    const spPts = data.map((d,i) => `${xOf(i)},${yOf(d.spend||0, maxSpend)}`);
+    let svg2 = `<svg class="chart-svg" style="height:80px" viewBox="0 0 ${W} 80" xmlns="http://www.w3.org/2000/svg">`;
+    [0,1].forEach(t => {
+      const y = (10 + 50*(1-t)).toFixed(1);
+      svg2 += `<line x1="${PADL}" y1="${y}" x2="${W-PADR}" y2="${y}" class="chart-grid" />`;
+      svg2 += `<text x="${PADL}" y="${parseFloat(y)-2}" font-size="9" fill="var(--muted)">$${(maxSpend*t).toFixed(0)}</text>`;
+    });
+    svg2 += `<polygon fill="rgba(16,185,129,.12)" points="${xOf(0)},60 ${spPts.join(' ')} ${xOf(n-1)},60" />`;
+    svg2 += `<polyline fill="none" stroke="var(--green)" stroke-width="2" points="${spPts.join(' ')}" />`;
+    data.forEach((d,i) => {
+      svg2 += `<circle r="3" cx="${xOf(i)}" cy="${yOf(d.spend||0,maxSpend)}" fill="var(--green)" />`;
+    });
+    svg2 += '</svg>';
+
+    let html = `<div class="trend-wrap">
+      <div class="trend-header">
+        <span class="trend-title">User Adoption Trend</span>
+        <span style="font-size:.75rem;color:var(--muted)">${data.length} period${data.length!==1?'s':''}</span>
+      </div>
+      ${svg}
+      <div class="trend-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>Active Users</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent2)"></div>Licensed Users</div>
+      </div>
+    </div>
+    <div class="trend-wrap" style="margin-top:14px">
+      <div class="trend-header"><span class="trend-title">💰 Spend Trend ($)</span></div>
+      ${svg2}
+    </div>
+    <div class="table-wrap" style="margin-top:14px">
+      <table><thead><tr>
+        <th style="text-align:left">Period</th><th>Licensed</th><th>Active</th>
+        <th>Engagement %</th><th>Spend ($)</th><th>Idle Spend ($)</th>
+      </tr></thead><tbody>`;
+    data.forEach(d => {
+      html += `<tr>
+        <td style="text-align:left;font-weight:600;font-size:.82rem">${d.period}</td>
+        <td>${d.licensed_users}</td><td>${d.active_users}</td>
+        <td>${d.engagement_pct.toFixed(1)}%</td>
+        <td>${nullFmt(d.spend,2)}</td>
+        <td>${nullFmt(d.idle_spend,2)}</td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+    return html;
+  }
+
+  /* ── Render: Idle Seats ──────────────────────────────── */
+  function renderIdle(rows) {
+    const total = rows.reduce((s,r) => s + r.cost, 0);
+    let html = `<div class="idle-stat">
+      Found <strong>${rows.length}</strong> idle seat${rows.length!==1?'s':''} · 
+      Total wasted spend: <strong>$${total.toFixed(2)}</strong>
+    </div>`;
+    if (!rows.length) {
+      html += '<div style="text-align:center;color:var(--green);padding:24px;font-size:.9rem">✅ No idle seats in this window!</div>';
+      return html;
+    }
+    html += `<div class="table-wrap"><table><thead><tr>
+      <th style="text-align:left">Name</th>
+      <th style="text-align:left">User ID</th>
+      <th>Tool</th>
+      <th>Org</th>
+      <th>Granted On</th>
+      <th>Days Held</th>
+      <th>Wasted Cost ($)</th>
+    </tr></thead><tbody>`;
+    rows.forEach(r => {
+      html += `<tr>
+        <td style="text-align:left;font-weight:600">${r.name}</td>
+        <td style="text-align:left;color:var(--muted);font-size:.8rem">${r.user_id}</td>
+        <td><span class="tool-badge">${r.tool}</span></td>
+        <td style="color:var(--muted);font-size:.8rem">${r.org_unit||'—'}</td>
+        <td style="color:var(--muted);font-size:.82rem">${r.granted_on}</td>
+        <td>${r.days_held}</td>
+        <td><span class="cost-pill">$${r.cost.toFixed(2)}</span></td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+    return html;
+  }
+
+  /* ── Main query runner ───────────────────────────────── */
+  async function runQuery() {
+    const btn = document.getElementById('run-btn');
+    const from = document.getElementById('inp-from').value;
+    const to   = document.getElementById('inp-to').value;
+    const org  = document.getElementById('inp-org').value.trim();
+    const gran = document.getElementById('inp-gran').value;
+
+    let url, label;
+    switch(activeTab) {
+      case 'summary':
+        url = `/api/summary?from=${from}&to=${to}${org?'&org='+encodeURIComponent(org):''}`;
+        break;
+      case 'tools':
+        url = `/api/tools?from=${from}&to=${to}${org?'&org='+encodeURIComponent(org):''}`;
+        break;
+      case 'trend':
+        url = `/api/trend?from=${from}&to=${to}&granularity=${gran}${org?'&org='+encodeURIComponent(org):''}`;
+        break;
+      case 'idle':
+        url = `/api/idle-seats?from=${from}&to=${to}${org?'&org='+encodeURIComponent(org):''}`;
+        break;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Loading…';
+    const results = document.getElementById('results');
+    results.innerHTML = '';
+
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+
+      if (!res.ok) {
+        results.innerHTML = `<div class="error-box">
+          <strong>Error ${res.status}</strong>: ${data.detail || JSON.stringify(data)}
+        </div>`;
+        return;
+      }
+
+      let html = '';
+      if (activeTab === 'summary') html = renderSummary(data);
+      else if (activeTab === 'tools') html = renderTools(data);
+      else if (activeTab === 'trend') html = renderTrend(data);
+      else if (activeTab === 'idle')  html = renderIdle(data);
+
+      html += `<details><summary>▶ Raw JSON response</summary>
+        <pre>${JSON.stringify(data, null, 2)}</pre>
+      </details>`;
+
+      const section = document.createElement('div');
+      section.style.animation = 'fadeUp .3s ease';
+      section.innerHTML = html;
+      results.appendChild(section);
+    } catch(e) {
+      results.innerHTML = `<div class="error-box"><strong>Network error</strong>: ${e.message}</div>`;
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = 'Run Query';
+    }
+  }
+
+  // Enter key
+  document.querySelectorAll('input').forEach(el => {
+    el.addEventListener('keydown', e => { if (e.key === 'Enter') runQuery(); });
+  });
+
+  // Initialise
+  loadOrgTree();
+  runQuery();
+</script>
+</body>
+</html>

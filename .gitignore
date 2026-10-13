@@ -34,5 +34,4 @@ Thumbs.db
 # but exclude any large generated files
 *.log
 
-# Screenshots / demo images — kept locally, not committed
-Images/
+
